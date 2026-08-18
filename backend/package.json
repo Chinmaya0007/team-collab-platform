@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "tsx watch src/app/server.ts",
-    "build": "tsc",
+    "build": "tsc && shx cp -r src/generated/prisma dist/generated/prisma",
     "start": "node dist/app/server.js",
     "db:migrate": "prisma migrate deploy",
     "lint": "eslint .",
@@ -53,6 +53,7 @@
     "jest": "^30.4.2",
     "nodemon": "^3.1.14",
     "prettier": "^3.9.6",
+    "shx": "^0.4.0",
     "supertest": "^7.2.2",
     "ts-jest": "^29.4.12",
     "tsx": "^4.23.6",
