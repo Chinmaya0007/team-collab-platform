@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "tsx watch src/app/server.ts",
-    "build": "tsc && shx cp -r src/generated/prisma dist/generated/prisma",
+    "build": "tsc && shx mkdir -p dist/generated && shx cp -r src/generated/prisma dist/generated/prisma",
     "start": "node dist/app/server.js",
     "db:migrate": "prisma migrate deploy",
     "lint": "eslint .",
