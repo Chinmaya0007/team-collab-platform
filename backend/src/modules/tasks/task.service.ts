@@ -75,6 +75,49 @@ export class TaskService {
     return this.repository.findByProject(projectId);
   }
 
+  async getById(
+    userId: string,
+    taskId: string,
+  ) {
+    const task = await this.repository.findById(taskId);
+
+    if (!task) {
+      throw new AppError(
+        "Task not found",
+        404,
+        "TASK_NOT_FOUND",
+      );
+    }
+
+    const project = await this.projectRepository.findById(
+      task.projectId,
+    );
+
+    if (!project) {
+      throw new AppError(
+        "Project not found",
+        404,
+        "PROJECT_NOT_FOUND",
+      );
+    }
+
+    const membership =
+      await this.organizationRepository.findUserMembership(
+        userId,
+        project.organizationId,
+      );
+
+    if (!membership) {
+      throw new AppError(
+        "Task access denied",
+        403,
+        "TASK_ACCESS_DENIED",
+      );
+    }
+
+    return task;
+  }
+
   async update(
     userId: string,
     taskId: string,
