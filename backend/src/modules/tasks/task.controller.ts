@@ -56,6 +56,29 @@ export class TaskController {
     });
   };
 
+  getById = async (
+    req: AuthRequest,
+    res: Response,
+  ) => {
+    if (!req.userId) {
+      throw new AppError(
+        "Authentication required",
+        401,
+        "UNAUTHORIZED",
+      );
+    }
+
+    const task = await this.service.getById(
+      req.userId,
+      String(req.params.id),
+    );
+
+    res.status(200).json({
+      success: true,
+      data: task,
+    });
+  };
+
   update = async (req: AuthRequest, res: Response) => {
     if (!req.userId) {
       throw new AppError(

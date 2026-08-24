@@ -9,11 +9,19 @@ const controller = new TaskController();
 router.use(authMiddleware);
 
 router.post("/", controller.create);
+
 router.get(
   "/project/:projectId",
   controller.getByProject,
 );
+
+router.get(
+  "/:id",
+  controller.getById,
+);
+
 router.patch("/:id", controller.update);
+
 router.delete("/:id", controller.delete);
 
 export default router;
