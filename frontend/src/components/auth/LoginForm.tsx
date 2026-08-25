@@ -2,12 +2,14 @@ import { useState } from "react";
 import { login } from "../../services/auth.service";
 import { ArrowRight, Eye, EyeOff, Mail } from "lucide-react";
 import { setAuth } from "../../store/auth.store";
+import { useNavigate } from "react-router-dom";
 
 const LoginForm = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -200,6 +202,7 @@ const LoginForm = () => {
           Don't have an account?{" "}
           <button
             type="button"
+            onClick={() => navigate("/register")}
             className="font-semibold text-[#3525cd] transition hover:underline"
           >
             Register now
