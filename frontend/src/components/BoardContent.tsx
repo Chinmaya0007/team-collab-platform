@@ -1,109 +1,60 @@
 import {
     AlertTriangle,
     ArrowUp,
-    Calendar,
     CheckCircle2,
     CheckSquare,
     ChevronDown,
     Filter,
-    GripVertical,
     MessageSquare,
     MoreHorizontal,
-    Paperclip,
     Plus,
     Search,
 } from "lucide-react";
-import { ReactNode } from "react";
+import { useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import CreateTaskModal from "./tasks/CreateTaskModal";
 
-type Priority = "Low" | "Medium" | "High" | "Urgent";
+import {
+    useCreateTask,
+    useDeleteTask,
+    useTasks,
+    useUpdateTask,
+} from "../hooks/useTasks";
 
-type Task = {
-    id: number;
-    label: string;
-    title: string;
-    priority?: Priority;
-    due?: string;
-    checklist?: string;
-    comments: number;
-    attachments?: number;
-    assignee?: string;
-    completed?: boolean;
-    active?: boolean;
-};
+import type {
+    Task,
+    TaskPriority,
+    TaskStatus,
+} from "../services/task.service";
 
 type ColumnProps = {
     title: string;
     count: number;
-    children: ReactNode;
+    children: React.ReactNode;
     addButton?: boolean;
 };
 
-const backlogTasks: Task[] = [
-    {
-        id: 1,
-        label: "Bug",
-        title: "API endpoint returning 500 on large payload exports",
-        priority: "High",
-        due: "Oct 24",
-        comments: 2,
-        attachments: 1,
-        assignee: "JD",
-    },
-    {
-        id: 2,
-        label: "Design",
-        title: "Refactor component library for Material 3 alignment",
-        priority: "Low",
-        checklist: "0/8",
-        comments: 0,
-    },
-];
-
-const todoTasks: Task[] = [
-    {
-        id: 3,
-        label: "Feature",
-        title: "Implement real-time collaboration on Kanban columns",
-        priority: "Medium",
-        checklist: "2/5",
-        comments: 12,
-        assignee: "AS",
-    },
-];
-
-const progressTasks: Task[] = [
-    {
-        id: 4,
-        label: "Feature",
-        title: "OAuth2 integration with Azure AD",
-        priority: "Urgent",
-        comments: 6,
-        assignee: "JD",
-        active: true,
-    },
-];
-
-const reviewTasks: Task[] = [
-    {
-        id: 5,
-        label: "DevOps",
-        title: "Configure AWS Lambda auto-scaling triggers",
-        comments: 4,
-        due: "3 days ago",
-        assignee: "MK",
-    },
-];
-
-const doneTasks: Task[] = [
-    {
-        id: 6,
-        label: "Feature",
-        title: "Dark mode theme engine implementation",
-        completed: true,
-        comments: 28,
-        assignee: "AS",
-    },
-];
+const STATUS_COLUMNS: {
+    status: TaskStatus;
+    title: string;
+}[] = [
+        {
+            status: "TODO",
+            title: "Todo",
+        },
+        {
+            status: "IN_PROGRESS",
+            title: "In Progress",
+        },
+        {
+            status: "IN_REVIEW",
+            title: "Review",
+        },
+        {
+            status: "DONE",
+            title: "Done",
+        },
+    ];
 
 const Avatar = ({ initials }: { initials: string }) => (
     <div className="flex h-[28px] w-[28px] items-center justify-center rounded-full bg-[#dad7ff] text-[11px] font-semibold text-[#3525cd]">
@@ -114,20 +65,11 @@ const Avatar = ({ initials }: { initials: string }) => (
 const PriorityBadge = ({
     priority,
 }: {
-    priority?: Priority;
+    priority?: TaskPriority;
 }) => {
     if (!priority) return null;
 
-    if (priority === "High") {
-        return (
-            <div className="flex items-center gap-[4px] text-[12px] text-red-500">
-                <AlertTriangle size={14} />
-                High
-            </div>
-        );
-    }
-
-    if (priority === "Urgent") {
+    if (priority === "URGENT") {
         return (
             <div className="flex items-center gap-[4px] text-[12px] font-semibold text-red-600">
                 <AlertTriangle size={14} />
@@ -136,7 +78,16 @@ const PriorityBadge = ({
         );
     }
 
-    if (priority === "Medium") {
+    if (priority === "HIGH") {
+        return (
+            <div className="flex items-center gap-[4px] text-[12px] text-red-500">
+                <AlertTriangle size={14} />
+                High
+            </div>
+        );
+    }
+
+    if (priority === "MEDIUM") {
         return (
             <div className="flex items-center gap-[4px] text-[12px] text-orange-500">
                 <ArrowUp size={14} />
@@ -153,90 +104,127 @@ const PriorityBadge = ({
     );
 };
 
-const TaskCard = ({ task }: { task: Task }) => (
-    <div
-        className={`group relative rounded-[18px] border bg-white p-[18px] transition-all duration-300 hover:-translate-y-1 hover:shadow-lg ${task.active
-            ? "border-[#3525cd] border-l-[5px]"
-            : "border-[#e5e7eb]"
-            } ${task.completed ? "opacity-70" : ""}`}
-    >
-        <button className="absolute right-[12px] top-[12px] opacity-0 transition group-hover:opacity-100">
-            <GripVertical
-                size={16}
-                className="text-[#9ca3af]"
-            />
-        </button>
+const getInitials = (assigneeId?: string | null) => {
+    if (!assigneeId) return null;
 
-        <span
-            className={`rounded-full px-[10px] py-[4px] text-[10px] font-bold uppercase ${task.label === "Bug"
-                ? "bg-red-100 text-red-700"
-                : task.label === "Design"
-                    ? "bg-cyan-100 text-cyan-700"
-                    : task.label === "DevOps"
-                        ? "bg-gray-200 text-gray-700"
-                        : "bg-green-100 text-green-700"
-                }`}
+    return assigneeId.slice(0, 2).toUpperCase();
+};
+
+const TaskCard = ({
+    task,
+    onStatusChange,
+    onDelete,
+    isUpdating,
+}: {
+    task: Task;
+    onStatusChange: (
+        taskId: string,
+        status: TaskStatus,
+    ) => void;
+    onDelete: (taskId: string) => void;
+    isUpdating: boolean;
+}) => {
+    const initials = getInitials(task.assigneeId);
+    const navigate = useNavigate();
+
+    return (
+        <div
+            className={`group relative rounded-[18px] border bg-white p-[18px] transition-all duration-300 hover:-translate-y-1 hover:shadow-lg ${task.status === "IN_PROGRESS"
+                ? "border-[#3525cd] border-l-[5px]"
+                : "border-[#e5e7eb]"
+                } ${task.status === "DONE" ? "opacity-70" : ""}`}
         >
-            {task.label}
-        </span>
+            <div className="absolute right-[12px] top-[12px] flex items-center gap-1">
+                <button
+                    type="button"
+                    onClick={() => onDelete(task.id)}
+                    disabled={isUpdating}
+                    title="Delete task"
+                    className="rounded-md p-1.5 text-[#9ca3af] transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                    <MoreHorizontal size={18} />
+                </button>
+            </div>
 
-        <h4
-            className={`mt-[14px] text-[15px] font-semibold leading-[24px] text-[#1a1b22] ${task.completed ? "line-through" : ""
-                }`}
-        >
-            {task.title}
-        </h4>
-
-        <div className="mt-[18px] flex flex-wrap gap-[16px]">
-            <PriorityBadge priority={task.priority} />
-
-            {task.due && (
-                <div className="flex items-center gap-[4px] text-[12px] text-[#6b7280]">
-                    <Calendar size={14} />
-                    {task.due}
-                </div>
+            <span className="rounded-full bg-[#eef2ff] px-[10px] py-[4px] text-[10px] font-bold uppercase text-[#3525cd]">
+                Task
+            </span>
+            <button
+                type="button"
+                onClick={() =>
+                    navigate(
+                        `/projects/${task.projectId}/tasks/${task.id}`,
+                    )
+                }
+                className={`mt-[14px] block w-full pr-[20px] text-left text-[15px] font-semibold leading-[24px] text-[#1a1b22] transition hover:text-[#3525cd] ${task.status === "DONE" ? "line-through" : ""
+                    }`}
+            >
+                {task.title}
+            </button>
+            {task.description && (
+                <p className="mt-[8px] line-clamp-2 text-[13px] leading-[20px] text-[#6b7280]">
+                    {task.description}
+                </p>
             )}
 
-            {task.checklist && (
-                <div className="flex items-center gap-[4px] text-[12px] text-[#6b7280]">
-                    <CheckSquare size={14} />
-                    {task.checklist}
-                </div>
-            )}
+            <div className="mt-[18px] flex flex-wrap gap-[16px]">
+                <PriorityBadge priority={task.priority} />
 
-            {task.completed && (
-                <div className="flex items-center gap-[4px] text-[12px] font-semibold text-green-600">
-                    <CheckCircle2 size={14} />
-                    Completed
-                </div>
-            )}
-        </div>
-
-        <div className="mt-[18px] flex items-center justify-between border-t border-[#ececf5] pt-[16px]">
-            <div className="flex items-center gap-[14px] text-[12px] text-[#6b7280]">
-                <div className="flex items-center gap-[4px]">
-                    <MessageSquare size={14} />
-                    {task.comments}
-                </div>
-
-                {task.attachments && (
-                    <div className="flex items-center gap-[4px]">
-                        <Paperclip size={14} />
-                        {task.attachments}
+                {task.status === "DONE" && (
+                    <div className="flex items-center gap-[4px] text-[12px] font-semibold text-green-600">
+                        <CheckCircle2 size={14} />
+                        Completed
                     </div>
                 )}
             </div>
 
-            {task.assignee ? (
-                <Avatar initials={task.assignee} />
-            ) : (
-                <button className="flex h-[28px] w-[28px] items-center justify-center rounded-full bg-[#ececec]">
-                    <Plus size={14} />
-                </button>
-            )}
+            <div className="mt-[18px] border-t border-[#ececf5] pt-[16px]">
+                <div className="mb-[8px] text-[11px] font-medium uppercase tracking-wide text-[#9ca3af]">
+                    Move task
+                </div>
+
+                <select
+                    value={task.status}
+                    disabled={isUpdating}
+                    onChange={(event) =>
+                        onStatusChange(
+                            task.id,
+                            event.target.value as TaskStatus,
+                        )
+                    }
+                    className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-xs text-[#464555] outline-none focus:border-[#3525cd]"
+                >
+                    <option value="TODO">Todo</option>
+                    <option value="IN_PROGRESS">
+                        In Progress
+                    </option>
+                    <option value="IN_REVIEW">Review</option>
+                    <option value="DONE">Done</option>
+                </select>
+            </div>
+
+            <div className="mt-[16px] flex items-center justify-between">
+                <div className="flex items-center gap-[14px] text-[12px] text-[#6b7280]">
+                    <div className="flex items-center gap-[4px]">
+                        <MessageSquare size={14} />
+                        0
+                    </div>
+                </div>
+
+                {initials ? (
+                    <Avatar initials={initials} />
+                ) : (
+                    <button
+                        type="button"
+                        className="flex h-[28px] w-[28px] items-center justify-center rounded-full bg-[#ececec]"
+                    >
+                        <Plus size={14} />
+                    </button>
+                )}
+            </div>
         </div>
-    </div>
-);
+    );
+};
 
 const KanbanColumn = ({
     title,
@@ -256,7 +244,10 @@ const KanbanColumn = ({
                 </span>
             </div>
 
-            <button>
+            <button
+                type="button"
+                className="rounded-md p-1 transition hover:bg-[#ececf5]"
+            >
                 {addButton ? (
                     <Plus size={18} />
                 ) : (
@@ -265,33 +256,112 @@ const KanbanColumn = ({
             </button>
         </div>
 
-        <div className="space-y-[18px]">{children}</div>
+        <div className="space-y-[18px]">
+            {children}
+        </div>
     </div>
 );
 
 const BoardContent = () => {
+    const { projectId } = useParams();
+
+    const [search, setSearch] = useState("");
+    const [isCreateTaskOpen, setIsCreateTaskOpen] =
+        useState(false);
+
+    const {
+        data: tasks = [],
+        isLoading,
+        isError,
+    } = useTasks(projectId ?? "");
+
+    const updateTaskMutation = useUpdateTask();
+    const createTaskMutation = useCreateTask();
+    const deleteTaskMutation = useDeleteTask();
+
+    const handleStatusChange = (
+        taskId: string,
+        status: TaskStatus,
+    ) => {
+        updateTaskMutation.mutate({
+            taskId,
+            data: {
+                status,
+            },
+        });
+    };
+
+    const handleDeleteTask = (taskId: string) => {
+        const confirmed = window.confirm(
+            "Are you sure you want to delete this task?",
+        );
+
+        if (!confirmed) return;
+
+        deleteTaskMutation.mutate(taskId);
+    };
+
+    const handleCreateTask = async (data: {
+        title: string;
+        description: string;
+        priority: TaskPriority;
+        assigneeId?: string;
+    }) => {
+        if (!projectId) return;
+
+        try {
+            await createTaskMutation.mutateAsync({
+                projectId,
+                title: data.title,
+                description: data.description,
+                priority: data.priority,
+                assigneeId: data.assigneeId,
+            });
+
+            setIsCreateTaskOpen(false);
+        } catch (error) {
+            console.error("Failed to create task:", error);
+        }
+    };
+
+    const filteredTasks = tasks.filter((task) =>
+        task.title
+            .toLowerCase()
+            .includes(search.toLowerCase()),
+    );
+
+    const getTasksForStatus = (status: TaskStatus) =>
+        filteredTasks.filter(
+            (task) => task.status === status,
+        );
+
+    const activeTasks = tasks.filter(
+        (task) => task.status !== "DONE",
+    ).length;
+
+    const completedTasks = tasks.filter(
+        (task) => task.status === "DONE",
+    ).length;
+
+    if (!projectId) {
+        return (
+            <section className="flex min-h-screen items-center justify-center bg-[#fbf8ff]">
+                <p className="text-sm text-red-600">
+                    Project ID is missing from the URL.
+                </p>
+            </section>
+        );
+    }
+
     return (
         <section className="flex h-full w-full flex-col overflow-hidden bg-[#fbf8ff]">
             {/* Header */}
-
             <div className="sticky top-0 z-20 border-b border-[#e5e7eb] bg-white">
                 <div className="flex flex-wrap items-center justify-between gap-[24px] px-[32px] py-[18px]">
                     <div className="flex items-center gap-[20px]">
                         <h1 className="text-[28px] font-bold text-[#1a1b22]">
-                            Engineering Sprint
+                            Project Board
                         </h1>
-
-                        <div className="h-[28px] w-[1px] bg-[#e5e7eb]" />
-
-                        <div className="flex -space-x-2">
-                            <Avatar initials="JD" />
-                            <Avatar initials="AS" />
-                            <Avatar initials="MK" />
-
-                            <div className="flex h-[28px] w-[28px] items-center justify-center rounded-full border-2 border-white bg-[#ececf5] text-[10px] font-semibold">
-                                +4
-                            </div>
-                        </div>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-[14px]">
@@ -303,37 +373,53 @@ const BoardContent = () => {
 
                             <input
                                 type="text"
+                                value={search}
+                                onChange={(event) =>
+                                    setSearch(event.target.value)
+                                }
                                 placeholder="Search tasks..."
                                 className="w-[260px] rounded-full border border-[#e5e7eb] bg-[#f8f8fb] py-[10px] pl-[42px] pr-[18px] text-[14px] outline-none transition focus:border-[#3525cd]"
                             />
                         </div>
 
-                        <button className="rounded-full p-[10px] transition hover:bg-[#f5f5f7]">
+                        <button
+                            type="button"
+                            className="rounded-full p-[10px] transition hover:bg-[#f5f5f7]"
+                        >
                             <Filter size={18} />
                         </button>
 
-                        <button className="rounded-full p-[10px] transition hover:bg-[#f5f5f7]">
+                        <button
+                            type="button"
+                            className="rounded-full p-[10px] transition hover:bg-[#f5f5f7]"
+                        >
                             <MessageSquare size={18} />
                         </button>
 
-                        <button className="flex items-center gap-[8px] rounded-[12px] bg-[#3525cd] px-[18px] py-[10px] text-[14px] font-semibold text-white transition hover:brightness-110">
+                        <button
+                            type="button"
+                            onClick={() => setIsCreateTaskOpen(true)}
+                            className="flex items-center gap-[8px] rounded-[12px] bg-[#3525cd] px-[18px] py-[10px] text-[14px] font-semibold text-white transition hover:brightness-110"
+                        >
                             <Plus size={18} />
                             Create Task
                         </button>
                     </div>
                 </div>
 
-                {/* Filters */}
-
+                {/* Filters / Stats */}
                 <div className="flex flex-wrap items-center justify-between gap-[18px] border-t border-[#ececf5] bg-[#fafbff] px-[32px] py-[14px]">
                     <div className="flex flex-wrap gap-[12px]">
-                        {["Assignee: All", "Label: Any", "Priority: All"].map((filter) => (
+                        {[
+                            "Assignee: All",
+                            "Priority: All",
+                        ].map((filter) => (
                             <button
+                                type="button"
                                 key={filter}
                                 className="flex items-center gap-[8px] rounded-[10px] border border-[#e5e7eb] bg-white px-[14px] py-[8px] text-[13px] font-medium text-[#555]"
                             >
                                 {filter}
-
                                 <ChevronDown size={15} />
                             </button>
                         ))}
@@ -342,126 +428,126 @@ const BoardContent = () => {
                     <div className="flex flex-wrap gap-[22px] text-[13px] text-[#6b7280]">
                         <div className="flex items-center gap-[6px]">
                             <span className="h-[8px] w-[8px] rounded-full bg-[#3525cd]" />
-                            12 Active Tasks
+                            {activeTasks} Active Tasks
                         </div>
 
                         <div className="flex items-center gap-[6px]">
                             <span className="h-[8px] w-[8px] rounded-full bg-[#16a34a]" />
-                            4 Completed
+                            {completedTasks} Completed
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Board */}
-
-            <div className="flex-1 overflow-x-auto overflow-y-hidden bg-[#f7f8fc] p-[32px]">
-                <div className="flex h-full gap-[24px]">
-                    <KanbanColumn
-                        title="Backlog"
-                        count={5}
-                    >
-                        {backlogTasks.map((task) => (
-                            <TaskCard
-                                key={task.id}
-                                task={task}
-                            />
-                        ))}
-                    </KanbanColumn>
-
-                    <KanbanColumn
-                        title="Todo"
-                        count={3}
-                        addButton
-                    >
-                        {todoTasks.map((task) => (
-                            <TaskCard
-                                key={task.id}
-                                task={task}
-                            />
-                        ))}
-                    </KanbanColumn>
-
-                    <KanbanColumn
-                        title="In Progress"
-                        count={2}
-                    >
-                        {progressTasks.map((task) => (
-                            <TaskCard
-                                key={task.id}
-                                task={task}
-                            />
-                        ))}
-                    </KanbanColumn>
-                    <KanbanColumn
-                        title="Review"
-                        count={1}
-                    >
-                        {reviewTasks.map((task) => (
-                            <TaskCard
-                                key={task.id}
-                                task={task}
-                            />
-                        ))}
-                    </KanbanColumn>
-
-                    <KanbanColumn
-                        title="Testing"
-                        count={0}
-                    >
-                        <div className="flex min-h-[220px] flex-col items-center justify-center rounded-[18px] border-2 border-dashed border-[#d6d6df] bg-[#fafbff] p-[24px]">
-                            <CheckSquare
-                                size={34}
-                                className="mb-[12px] text-[#9ca3af]"
-                            />
-
-                            <p className="text-center text-[14px] font-medium text-[#6b7280]">
-                                No tasks currently
-                                <br />
-                                in testing
-                            </p>
-                        </div>
-                    </KanbanColumn>
-
-                    <KanbanColumn
-                        title="Done"
-                        count={14}
-                    >
-                        {doneTasks.map((task) => (
-                            <TaskCard
-                                key={task.id}
-                                task={task}
-                            />
-                        ))}
-                    </KanbanColumn>
+            {/* Loading */}
+            {isLoading && (
+                <div className="flex flex-1 items-center justify-center">
+                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#3525cd]/30 border-t-[#3525cd]" />
                 </div>
-            </div>
+            )}
+
+            {/* Error */}
+            {isError && (
+                <div className="flex flex-1 items-center justify-center">
+                    <div className="rounded-xl border border-red-200 bg-red-50 px-6 py-5 text-sm text-red-600">
+                        Failed to load tasks.
+                    </div>
+                </div>
+            )}
+
+            {/* Board */}
+            {!isLoading && !isError && (
+                <div className="flex-1 overflow-x-auto overflow-y-hidden bg-[#f7f8fc] p-[32px]">
+                    <div className="flex h-full gap-[24px]">
+                        {STATUS_COLUMNS.map((column) => {
+                            const columnTasks = getTasksForStatus(
+                                column.status,
+                            );
+
+                            return (
+                                <KanbanColumn
+                                    key={column.status}
+                                    title={column.title}
+                                    count={columnTasks.length}
+                                    addButton={column.status === "TODO"}
+                                >
+                                    {columnTasks.length === 0 ? (
+                                        <div className="flex min-h-[180px] items-center justify-center rounded-[18px] border-2 border-dashed border-[#d6d6df] bg-[#fafbff] p-[24px]">
+                                            <div className="text-center">
+                                                <CheckSquare
+                                                    size={30}
+                                                    className="mx-auto mb-[10px] text-[#9ca3af]"
+                                                />
+
+                                                <p className="text-[13px] text-[#6b7280]">
+                                                    No tasks
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        columnTasks.map((task) => (
+                                            <TaskCard
+                                                key={task.id}
+                                                task={task}
+                                                onStatusChange={handleStatusChange}
+                                                onDelete={handleDeleteTask}
+                                                isUpdating={
+                                                    updateTaskMutation.isPending
+                                                }
+                                            />
+                                        ))
+                                    )}
+                                </KanbanColumn>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
 
             {/* Footer */}
-
             <footer className="border-t border-[#e5e7eb] bg-white px-[32px] py-[22px]">
                 <div className="flex flex-col items-center justify-between gap-[18px] text-[13px] text-[#6b7280] md:flex-row">
-                    <p>© 2026 Nexus Technologies. All rights reserved.</p>
+                    <p>
+                        © 2026 Nexus Technologies. All rights reserved.
+                    </p>
 
                     <div className="flex flex-wrap gap-[20px]">
-                        <button className="transition hover:text-[#3525cd]">
+                        <button
+                            type="button"
+                            className="transition hover:text-[#3525cd]"
+                        >
                             Privacy Policy
                         </button>
 
-                        <button className="transition hover:text-[#3525cd]">
+                        <button
+                            type="button"
+                            className="transition hover:text-[#3525cd]"
+                        >
                             Terms of Service
                         </button>
 
-                        <button className="transition hover:text-[#3525cd]">
+                        <button
+                            type="button"
+                            className="transition hover:text-[#3525cd]"
+                        >
                             Security
                         </button>
 
-                        <button className="transition hover:text-[#3525cd]">
+                        <button
+                            type="button"
+                            className="transition hover:text-[#3525cd]"
+                        >
                             Status
                         </button>
                     </div>
                 </div>
             </footer>
+            <CreateTaskModal
+                isOpen={isCreateTaskOpen}
+                onClose={() => setIsCreateTaskOpen(false)}
+                onCreate={handleCreateTask}
+                isCreating={createTaskMutation.isPending}
+            />
         </section>
     );
 };

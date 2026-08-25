@@ -2,7 +2,6 @@ import {
     AlertTriangle,
     Bell,
     Brush,
-    Check,
     CreditCard,
     KeyRound,
     Lock,
@@ -14,7 +13,7 @@ import {
     User,
     Users,
 } from "lucide-react";
-import { ReactNode } from "react";
+import type { ReactNode } from "react";
 
 type SettingsTab = {
     id: string;

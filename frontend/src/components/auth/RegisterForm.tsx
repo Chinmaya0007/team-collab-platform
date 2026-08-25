@@ -6,9 +6,12 @@ import {
     Mail,
     User,
 } from "lucide-react";
+import { register } from "../../services/auth.service";
 
 const RegisterForm = () => {
     const [showPassword, setShowPassword] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState("");
     const [form, setForm] = useState({
         fullName: "",
         username: "",
@@ -57,16 +60,79 @@ const RegisterForm = () => {
         "bg-[#007030]",
     ];
 
-    const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    const handleSubmit = async (
+        e: React.FormEvent<HTMLFormElement>,
+    ) => {
         e.preventDefault();
 
-        console.log(form);
+        setError("");
+
+        if (!form.terms) {
+            setError("Please accept the Terms of Service and Privacy Policy.");
+            return;
+        }
+
+        if (form.password !== form.confirmPassword) {
+            setError("Passwords do not match.");
+            return;
+        }
+
+        if (form.password.length < 8) {
+            setError("Password must be at least 8 characters.");
+            return;
+        }
+
+        const nameParts = form.fullName.trim().split(/\s+/);
+
+        const firstName = nameParts[0] || undefined;
+        const lastName =
+            nameParts.length > 1
+                ? nameParts.slice(1).join(" ")
+                : undefined;
+
+        try {
+            setIsLoading(true);
+
+            const response = await register({
+                email: form.email,
+                username: form.username,
+                password: form.password,
+                firstName,
+                lastName,
+            });
+
+            localStorage.setItem(
+                "accessToken",
+                response.accessToken,
+            );
+
+            localStorage.setItem(
+                "refreshToken",
+                response.refreshToken,
+            );
+
+            localStorage.setItem(
+                "user",
+                JSON.stringify(response.user),
+            );
+
+            // Temporary success redirect
+            window.location.href = "/dashboard";
+        } catch (error: any) {
+            const message =
+                error?.response?.data?.message ||
+                "Registration failed. Please try again.";
+
+            setError(message);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
-        <>
+        <div className="flex flex-col">
             {/* Mobile Logo */}
-            <div className="mb-[32px] flex items-center gap-[12px] lg:hidden">
+            <div className="mb-[32px] flex items-center justify-center gap-[12px] lg:hidden">
                 <div className="flex h-[40px] w-[40px] items-center justify-center rounded-[12px] bg-[#3525cd] text-[18px] font-bold text-white">
                     N
                 </div>
@@ -192,10 +258,10 @@ const RegisterForm = () => {
                                     <div
                                         key={item}
                                         className={`h-[4px] flex-1 rounded-full ${item < strength
-                                                ? strengthColor[
-                                                Math.max(strength - 1, 0)
-                                                ]
-                                                : "bg-[#e8e7f1]"
+                                            ? strengthColor[
+                                            Math.max(strength - 1, 0)
+                                            ]
+                                            : "bg-[#e8e7f1]"
                                             }`}
                                     />
                                 ))}
@@ -253,14 +319,28 @@ const RegisterForm = () => {
                         </span>
                     </label>
 
+                    {error && (
+                        <div className="rounded-[12px] border border-red-200 bg-red-50 px-[14px] py-[12px] text-[13px] text-red-600">
+                            {error}
+                        </div>
+                    )}
                     {/* Submit */}
                     <button
                         type="submit"
-                        className="flex h-[50px] mt-2 w-full items-center justify-center gap-[8px] rounded-[12px] bg-[#3525cd] text-[16px] font-semibold text-white transition hover:bg-[#2f20b8]"
+                        disabled={isLoading}
+                        className="flex h-[50px] mt-2 w-full items-center justify-center gap-[8px] rounded-[12px] bg-[#3525cd] text-[16px] font-semibold text-white transition hover:bg-[#2f20b8] disabled:cursor-not-allowed disabled:opacity-70"
                     >
-                        Create Account
-
-                        <ArrowRight size={18} />
+                        {isLoading ? (
+                            <>
+                                <span className="h-[18px] w-[18px] animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                                Creating account...
+                            </>
+                        ) : (
+                            <>
+                                Create Account
+                                <ArrowRight size={18} />
+                            </>
+                        )}
                     </button>
 
                     {/* Divider */}
@@ -311,7 +391,7 @@ const RegisterForm = () => {
                     </p>
                 </form>
             </div>
-        </>
+        </div>
     );
 };
 export default RegisterForm;

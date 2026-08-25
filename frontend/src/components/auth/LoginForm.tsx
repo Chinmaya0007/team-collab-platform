@@ -1,15 +1,45 @@
 import { useState } from "react";
+import { login } from "../../services/auth.service";
 import { ArrowRight, Eye, EyeOff, Mail } from "lucide-react";
+import { setAuth } from "../../store/auth.store";
 
 const LoginForm = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    // TODO: Connect API
-    console.log("Login submitted");
+    const formData = new FormData(e.currentTarget);
+
+    const email = String(formData.get("email") ?? "");
+    const password = String(formData.get("password") ?? "");
+
+    try {
+      setIsLoading(true);
+
+      const response = await login({
+        email,
+        password,
+      });
+
+      setAuth(
+        response.user,
+        response.accessToken,
+        response.refreshToken,
+      );
+
+      window.location.href = "/dashboard";
+    } catch (error: any) {
+      setError(
+        error?.response?.data?.message ||
+        "Invalid email or password.",
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -53,11 +83,11 @@ const LoginForm = () => {
           <div className="relative">
             <input
               id="email"
+              name="email"
               type="email"
               placeholder="name@company.com"
               className="h-[48px] w-full rounded-[12px] border border-[#c7c4d8] bg-white px-[16px] pr-[48px] text-[14px] text-[#1a1b22] placeholder:text-[#777587] outline-none transition focus:border-[#3525cd] focus:shadow-[0_0_0_3px_rgba(79,70,229,0.2)]"
             />
-
             <Mail
               size={18}
               className="absolute right-[16px] top-1/2 -translate-y-1/2 text-[#777587]"
@@ -86,11 +116,11 @@ const LoginForm = () => {
           <div className="relative">
             <input
               id="password"
+              name="password"
               type={showPassword ? "text" : "password"}
               placeholder="••••••••"
               className="h-[48px] w-full rounded-[12px] border border-[#c7c4d8] bg-white px-[16px] pr-[48px] text-[14px] text-[#1a1b22] placeholder:text-[#777587] outline-none transition focus:border-[#3525cd] focus:shadow-[0_0_0_3px_rgba(79,70,229,0.2)]"
             />
-
             <button
               type="button"
               onClick={() => setShowPassword((prev) => !prev)}
@@ -114,15 +144,28 @@ const LoginForm = () => {
             Remember me for 30 days
           </span>
         </label>
-
+        {error && (
+          <div className="rounded-[12px] border border-red-200 bg-red-50 px-[14px] py-[12px] text-[13px] text-red-600">
+            {error}
+          </div>
+        )}
         {/* Sign In */}
         <button
           type="submit"
-          className="flex h-[48px] w-full items-center justify-center gap-[8px] rounded-[12px] bg-[#3525cd] text-[16px] font-semibold text-white transition hover:bg-[#2f20b8] active:scale-[0.98]"
+          disabled={isLoading}
+          className="flex h-[48px] w-full items-center justify-center gap-[8px] rounded-[12px] bg-[#3525cd] text-[16px] font-semibold text-white transition hover:bg-[#2f20b8] disabled:cursor-not-allowed disabled:opacity-70"
         >
-          Sign In
-
-          <ArrowRight size={18} />
+          {isLoading ? (
+            <>
+              <span className="h-[18px] w-[18px] animate-spin rounded-full border-2 border-white/30 border-t-white" />
+              Signing in...
+            </>
+          ) : (
+            <>
+              Sign In
+              <ArrowRight size={18} />
+            </>
+          )}
         </button>
 
         {/* Divider */}

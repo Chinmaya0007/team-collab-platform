@@ -1,71 +1,59 @@
 import {
   ArrowDown,
-  CalendarDays,
-  ChevronDown,
   Grid2X2,
   List,
   MoreVertical,
 } from "lucide-react";
+import { useParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
-const projects = [
-  {
-    id: 1,
-    title: "Project Phoenix",
-    description:
-      "Re-architecting the core cloud infrastructure for 2025 scalability requirements.",
-    status: "Active",
-    priority: "High",
-    progress: 75,
-    color: "#3525cd",
-    due: "Dec 12, 2024",
-  },
-  {
-    id: 2,
-    title: "Global Expansion Kit",
-    description:
-      "Standardized assets and localization strategies for the upcoming Q3 European launch.",
-    status: "On Hold",
-    priority: "Medium",
-    progress: 32,
-    color: "#0ea5e9",
-    due: "Jan 15, 2025",
-  },
-  {
-    id: 3,
-    title: "Q3 Security Audit",
-    description:
-      "Comprehensive internal penetration testing and compliance documentation.",
-    status: "Completed",
-    priority: "Low",
-    progress: 100,
-    color: "#16a34a",
-    due: "Nov 02, 2024",
-  },
-  {
-    id: 4,
-    title: "Nexus Design System",
-    description:
-      "Developing a unified visual language and component library for all internal tools.",
-    status: "Active",
-    priority: "High",
-    progress: 54,
-    color: "#6366f1",
-    due: "Feb 20, 2025",
-  },
-  {
-    id: 5,
-    title: "API Marketplace",
-    description:
-      "Building a public-facing portal for third-party developer integrations.",
-    status: "Active",
-    priority: "Medium",
-    progress: 12,
-    color: "#14b8a6",
-    due: "Mar 10, 2025",
-  },
-];
+import {
+  useProjects,
+  useCreateProject,
+} from "../hooks/useProjects";
+
+import { useState } from "react";
+import CreateProjectModal from "./project/CreateProject";
 
 const ProjectsContent = () => {
+  const { organizationId } = useParams();
+  const navigate = useNavigate();
+
+  const [isCreateModalOpen, setIsCreateModalOpen] =
+    useState(false);
+
+  const {
+    data: projects = [],
+    isLoading,
+    isError,
+  } = useProjects(organizationId ?? "");
+
+  const createProjectMutation = useCreateProject();
+
+  const handleCreateProject = async (data: {
+    name: string;
+    slug: string;
+    description: string;
+  }) => {
+    if (!organizationId) {
+      console.error("Organization ID is missing");
+      return;
+    }
+
+    try {
+      await createProjectMutation.mutateAsync({
+        organizationId,
+        name: data.name,
+        slug: data.slug,
+        description: data.description,
+      });
+
+      setIsCreateModalOpen(false);
+    } catch (error) {
+      console.error("Failed to create project:", error);
+    }
+  };
+
   return (
     <section className="flex w-full flex-col p-[32px]">
       {/* Header */}
@@ -81,11 +69,17 @@ const ProjectsContent = () => {
         </div>
 
         <div className="flex rounded-[12px] bg-[#eeedf7] p-[4px]">
-          <button className="rounded-[8px] bg-white p-[8px] shadow-sm">
+          <button
+            type="button"
+            className="rounded-[8px] bg-white p-[8px] shadow-sm"
+          >
             <Grid2X2 size={18} />
           </button>
 
-          <button className="rounded-[8px] p-[8px] text-[#777587]">
+          <button
+            type="button"
+            className="rounded-[8px] p-[8px] text-[#777587]"
+          >
             <List size={18} />
           </button>
         </div>
@@ -94,128 +88,196 @@ const ProjectsContent = () => {
       {/* Filters */}
       <div className="mb-[32px] flex flex-wrap items-center justify-between gap-[20px] border-b border-[#e4e4ec] pb-[20px]">
         <div className="flex flex-wrap gap-[12px]">
-          {["Status: All", "Priority: High", "Team: Digital"].map((item) => (
-            <button
-              key={item}
-              className="flex items-center gap-[8px] rounded-full border border-[#d7d5e7] px-[16px] py-[8px] text-[14px]"
-            >
-              {item}
-              <ChevronDown size={16} />
-            </button>
-          ))}
+          <button
+            type="button"
+            className="flex items-center gap-[8px] rounded-full border border-[#d7d5e7] px-[16px] py-[8px] text-[14px]"
+          >
+            Status: All
+            <ArrowDown size={16} />
+          </button>
+
+          <button
+            type="button"
+            className="flex items-center gap-[8px] rounded-full border border-[#d7d5e7] px-[16px] py-[8px] text-[14px]"
+          >
+            All Projects
+            <ArrowDown size={16} />
+          </button>
         </div>
 
-        <button className="flex items-center gap-[6px] text-[14px] font-semibold text-[#3525cd]">
+        <button
+          type="button"
+          className="flex items-center gap-[6px] text-[14px] font-semibold text-[#3525cd]"
+        >
           Last Modified
           <ArrowDown size={16} />
         </button>
       </div>
 
-      {/* Cards */}
-      <div className="grid grid-cols-1 gap-[24px] md:grid-cols-2 xl:grid-cols-3">
-        {projects.map((project) => (
-          <div
-            key={project.id}
-            className="overflow-hidden rounded-[18px] border border-[#e4e4ec] bg-white transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
-          >
+      {/* Loading */}
+      {isLoading && (
+        <div className="flex min-h-[300px] items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#3525cd]/30 border-t-[#3525cd]" />
+        </div>
+      )}
+
+      {/* Error */}
+      {isError && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center text-sm text-red-600">
+          Failed to load projects.
+        </div>
+      )}
+
+      {/* Projects */}
+      {!isLoading && !isError && (
+        <div className="grid grid-cols-1 gap-[24px] md:grid-cols-2 xl:grid-cols-3">
+          {projects.map((project) => (
             <div
-              className="h-[5px]"
-              style={{ background: project.color }}
-            />
+              key={project.id}
+              className="overflow-hidden rounded-[18px] border border-[#e4e4ec] bg-white transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
+            >
+              {/* Project accent */}
+              <div className="h-[5px] bg-[#3525cd]" />
 
-            <div className="flex flex-col p-[22px]">
-              <div className="mb-[18px] flex items-start justify-between">
-                <div>
-                  <h3 className="text-[18px] font-semibold">
-                    {project.title}
-                  </h3>
+              <div className="flex flex-col p-[22px]">
+                <div className="mb-[18px] flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        navigate(`/projects/${project.id}/board`)
+                      }
+                      className="truncate text-left text-[18px] font-semibold text-[#1a1b22] hover:text-[#3525cd]"
+                    >
+                      {project.name}
+                    </button>
 
-                  <p className="mt-[8px] text-[14px] leading-[24px] text-[#666]">
-                    {project.description}
-                  </p>
+                    <p className="mt-[8px] text-[13px] text-[#777587]">
+                      Slug: {project.slug}
+                    </p>
+
+                    <p className="mt-[8px] text-[14px] leading-[24px] text-[#666]">
+                      {project.description ||
+                        "No description provided."}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="shrink-0 rounded-lg p-1 text-[#777587] transition hover:bg-[#f3f4f5] hover:text-[#191c1d]"
+                    aria-label={`More options for ${project.name}`}
+                  >
+                    <MoreVertical size={18} />
+                  </button>
                 </div>
 
-                <button>
-                  <MoreVertical size={18} />
-                </button>
+                {/* Project information */}
+                <div className="flex flex-wrap gap-[8px]">
+                  <span className="rounded-full bg-[#eef2ff] px-[12px] py-[4px] text-[11px] font-semibold text-[#3525cd]">
+                    Project
+                  </span>
+
+                  <span className="rounded-full bg-[#f3f4f5] px-[12px] py-[4px] text-[11px] font-medium text-[#464555]">
+                    {project.organizationId}
+                  </span>
+                </div>
               </div>
 
-              <div className="mb-[24px] flex flex-wrap gap-[8px]">
-                <span className="rounded-full bg-[#eef2ff] px-[12px] py-[4px] text-[11px] font-semibold text-[#3525cd]">
-                  {project.status}
-                </span>
+              {/* Footer */}
+              <div className="flex items-center justify-between border-t border-[#ececf5] bg-[#fafafe] px-[22px] py-[18px]">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-[#eef2ff] text-sm font-semibold text-[#3525cd]">
+                    {project.name
+                      .charAt(0)
+                      .toUpperCase()}
+                  </div>
 
-                <span className="rounded-full bg-[#fee2e2] px-[12px] py-[4px] text-[11px] font-semibold text-[#dc2626]">
-                  {project.priority}
-                </span>
-              </div>
-
-              <div>
-                <div className="mb-[8px] flex justify-between text-[13px]">
-                  <span>Progress</span>
-
-                  <span>{project.progress}%</span>
+                  <span className="text-[13px] text-[#666]">
+                    Project
+                  </span>
                 </div>
 
-                <div className="h-[8px] rounded-full bg-[#ececf5]">
-                  <div
-                    className="h-full rounded-full"
-                    style={{
-                      width: `${project.progress}%`,
-                      background: project.color,
-                    }}
-                  />
-                </div>
+                <span className="text-[12px] text-[#777587]">
+                  {project.createdAt
+                    ? new Date(
+                      project.createdAt,
+                    ).toLocaleDateString()
+                    : ""}
+                </span>
               </div>
             </div>
+          ))}
 
-            <div className="flex items-center justify-between border-t border-[#ececf5] bg-[#fafafe] px-[22px] py-[18px]">
-              <div className="flex -space-x-2">
-                {[1, 2, 3].map((item) => (
-                  <div
-                    key={item}
-                    className="h-[34px] w-[34px] rounded-full border-2 border-white bg-[#d7d5e7]"
-                  />
-                ))}
+          {/* Empty state */}
+          {projects.length === 0 && (
+            <div className="col-span-full flex min-h-[280px] flex-col items-center justify-center rounded-[18px] border border-dashed border-[#d7d5e7] bg-white">
+              <div className="flex h-[56px] w-[56px] items-center justify-center rounded-full bg-[#eef2ff] text-[28px] font-bold text-[#3525cd]">
+                +
               </div>
 
-              <div className="flex items-center gap-[6px] text-[13px] text-[#666]">
-                <CalendarDays size={15} />
-                {project.due}
-              </div>
+              <h3 className="mt-[18px] text-[18px] font-semibold text-[#1a1b22]">
+                No projects yet
+              </h3>
+
+              <p className="mt-[6px] text-[14px] text-[#666]">
+                Create your first project for this organization.
+              </p>
+
+              <button
+                type="button"
+                onClick={() => setIsCreateModalOpen(true)}
+                className="mt-[18px] rounded-lg bg-[#3525cd] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#2f20b8]"
+              >
+                Create Project
+              </button>
             </div>
-          </div>
-        ))}
+          )}
 
-        {/* Add Project Card */}
-        <button className="flex min-h-[320px] flex-col items-center justify-center gap-[18px] rounded-[18px] border-2 border-dashed border-[#d7d5e7] transition hover:border-[#3525cd] hover:bg-[#f8f7ff]">
-          <div className="flex h-[56px] w-[56px] items-center justify-center rounded-full bg-[#eef2ff] text-[28px] font-bold text-[#3525cd]">
-            +
-          </div>
+          {/* Add Project Card */}
+          {projects.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setIsCreateModalOpen(true)}
+              className="flex min-h-[280px] flex-col items-center justify-center gap-[18px] rounded-[18px] border-2 border-dashed border-[#d7d5e7] transition hover:border-[#3525cd] hover:bg-[#f8f7ff]"
+            >
+              <div className="flex h-[56px] w-[56px] items-center justify-center rounded-full bg-[#eef2ff] text-[28px] font-bold text-[#3525cd]">
+                +
+              </div>
 
-          <div className="text-center">
-            <h3 className="text-[18px] font-semibold">
-              Start New Project
-            </h3>
+              <div className="text-center">
+                <h3 className="text-[18px] font-semibold">
+                  Start New Project
+                </h3>
 
-            <p className="mt-[6px] text-[14px] text-[#666]">
-              Bring your vision to life
-            </p>
-          </div>
-        </button>
-      </div>
+                <p className="mt-[6px] text-[14px] text-[#666]">
+                  Bring your vision to life
+                </p>
+              </div>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Footer */}
       <footer className="mt-[48px] flex flex-wrap items-center justify-between gap-[16px] border-t border-[#e4e4ec] pt-[24px] text-[13px] text-[#777587]">
         <span>© 2026 Nexus Technologies</span>
 
         <div className="flex flex-wrap gap-[20px]">
-          <button>Privacy</button>
-          <button>Terms</button>
-          <button>Security</button>
-          <button>Status</button>
+          <button type="button">Privacy</button>
+          <button type="button">Terms</button>
+          <button type="button">Security</button>
+          <button type="button">Status</button>
         </div>
       </footer>
+
+      {/* Create Project Modal */}
+      {organizationId && (
+        <CreateProjectModal
+          isOpen={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
+          onCreate={handleCreateProject}
+        />
+      )}
     </section>
   );
 };

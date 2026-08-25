@@ -7,9 +7,8 @@ import {
     Mail,
     MessageSquare,
     Star,
-    Users,
 } from "lucide-react";
-import { ReactNode } from "react";
+import type { ReactNode } from "react";
 
 type Stat = {
     icon: ReactNode;

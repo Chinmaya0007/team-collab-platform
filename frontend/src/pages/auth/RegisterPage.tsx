@@ -2,13 +2,13 @@ import RegisterForm from "../../components/auth/RegisterForm";
 import RegisterHero from "../../components/auth/RegisterHero";
 const RegisterPage = () => {
   return (
-    <main className="flex min-h-screen overflow-hidden bg-[#fbf8ff]">
+    <div className="min-h-screen w-full lg:flex">
       <RegisterHero />
 
-      <section className="relative flex w-full items-center justify-center bg-white px-[16px] py-[48px] md:px-[48px] lg:w-1/2">
+      <main className="flex min-h-screen w-full items-center justify-center px-[24px] py-[40px] lg:w-1/2 lg:px-[64px]">
         <RegisterForm />
-      </section>
-    </main>
+      </main>
+    </div>
   );
 };
 

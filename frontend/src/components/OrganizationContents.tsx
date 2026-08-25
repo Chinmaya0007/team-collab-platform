@@ -1,74 +1,54 @@
 import {
-    Building2,
     Filter,
     Grid2X2,
     List,
     Plus,
     Settings,
     ShieldCheck,
-    User,
-    UserCog,
-    Workflow,
-    Palette,
-    FlaskConical,
 } from "lucide-react";
-
-const organizations = [
-    {
-        id: 1,
-        name: "Acme Corp",
-        role: "Owner",
-        members: 124,
-        projects: 18,
-        badge: "Primary",
-        icon: Building2,
-        iconBg: "#dad7ff",
-        iconColor: "#3525cd",
-    },
-    {
-        id: 2,
-        name: "Global Tech",
-        role: "Admin",
-        members: 3490,
-        projects: 42,
-        icon: Workflow,
-        iconBg: "#dff8ff",
-        iconColor: "#00687a",
-    },
-    {
-        id: 3,
-        name: "Nebula Research",
-        role: "Member",
-        members: 52,
-        projects: 7,
-        icon: FlaskConical,
-        iconBg: "#dcfce7",
-        iconColor: "#15803d",
-    },
-    {
-        id: 4,
-        name: "Creative Labs",
-        role: "Owner",
-        members: 8,
-        projects: 31,
-        icon: Palette,
-        iconBg: "#fee2e2",
-        iconColor: "#dc2626",
-    },
-];
-
-const roleIcon = (role: string) => {
-    switch (role) {
-        case "Owner":
-            return <ShieldCheck size={15} />;
-        case "Admin":
-            return <UserCog size={15} />;
-        default:
-            return <User size={15} />;
-    }
-};
+import {
+    useOrganizations,
+    useCreateOrganization,
+} from "../hooks/useOrganizations";
+import { useState } from "react";
+import CreateOrganizationModal from "./organization/CreateOrganization";
+import { useNavigate } from "react-router-dom";
 
 const OrganizationsContent = () => {
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    const createOrganizationMutation = useCreateOrganization();
+    const {
+        data: organizations = [],
+        isLoading,
+        isError,
+    } = useOrganizations();
+
+    console.log("Organizations from API:", organizations); 4
+    const storedUser = localStorage.getItem("user");
+    const navigate = useNavigate();
+
+    const currentUser = storedUser
+        ? JSON.parse(storedUser)
+        : null;
+
+    if (isLoading) {
+        return (
+            <section className="flex min-h-screen w-full items-center justify-center">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#3525cd]/30 border-t-[#3525cd]" />
+            </section>
+        );
+    }
+
+    if (isError) {
+        return (
+            <section className="flex min-h-screen w-full items-center justify-center">
+                <div className="rounded-[12px] border border-red-200 bg-red-50 px-[20px] py-[16px] text-[14px] text-red-600">
+                    Failed to load organizations.
+                </div>
+            </section>
+        );
+    }
+
     return (
         <section className="flex w-full flex-1 flex-col overflow-y-auto">
             {/* Header */}
@@ -100,7 +80,10 @@ const OrganizationsContent = () => {
                             Filter
                         </button>
 
-                        <button className="flex items-center gap-[8px] rounded-[10px] bg-[#3525cd] px-[18px] py-[10px] text-[14px] font-semibold text-white shadow-lg shadow-[#3525cd]/20 transition hover:brightness-110">
+                        <button
+                            onClick={() => setIsCreateModalOpen(true)}
+                            className="flex items-center gap-[8px] rounded-[10px] bg-[#3525cd] px-[18px] py-[10px] text-[14px] font-semibold text-white shadow-lg shadow-[#3525cd]/20 transition hover:brightness-110"
+                        >
                             <Plus size={18} />
                             Create Organization
                         </button>
@@ -112,19 +95,22 @@ const OrganizationsContent = () => {
             <div className="flex-1 p-[32px]">
                 <div className="grid grid-cols-1 gap-[24px] md:grid-cols-2 xl:grid-cols-3">
                     {organizations.map((organization) => {
-                        const Icon = organization.icon;
+                        const Icon = ShieldCheck;
 
                         return (
                             <div
                                 key={organization.id}
-                                className="group flex flex-col rounded-[18px] border border-[#e5e7eb] bg-white p-[24px] transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
+                                onClick={() =>
+                                    navigate(`/organizations/${organization.id}`)
+                                }
+                                className="group flex flex-col cursor-pointer rounded-[18px] border border-[#e5e7eb] bg-white p-[24px] transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
                             >
                                 <div className="mb-[24px] flex items-start justify-between">
                                     <div
                                         className="flex h-[58px] w-[58px] items-center justify-center rounded-[16px]"
                                         style={{
-                                            backgroundColor: organization.iconBg,
-                                            color: organization.iconColor,
+                                            backgroundColor: "#eeedf7",
+                                            color: "#3525cd",
                                         }}
                                     >
                                         <Icon size={30} />
@@ -140,17 +126,15 @@ const OrganizationsContent = () => {
                                         <h3 className="text-[20px] font-semibold text-[#1a1b22]">
                                             {organization.name}
                                         </h3>
-
-                                        {organization.badge && (
-                                            <span className="rounded-full border border-[#bbf7d0] bg-[#dcfce7] px-[10px] py-[2px] text-[11px] font-semibold text-[#15803d]">
-                                                {organization.badge}
-                                            </span>
-                                        )}
                                     </div>
 
                                     <div className="mt-[10px] flex items-center gap-[6px] text-[14px] text-[#6b7280]">
-                                        {roleIcon(organization.role)}
-                                        <span>{organization.role}</span>
+                                        <ShieldCheck size={15} />
+                                        <span>
+                                            {organization.ownerId === currentUser?.id
+                                                ? "Owner"
+                                                : "Member"}
+                                        </span>
                                     </div>
                                 </div>
 
@@ -161,7 +145,7 @@ const OrganizationsContent = () => {
                                         </p>
 
                                         <h4 className="mt-[6px] text-[28px] font-bold text-[#1a1b22]">
-                                            {organization.members.toLocaleString()}
+                                            {organization.memberships?.length ?? 0}
                                         </h4>
                                     </div>
 
@@ -171,12 +155,12 @@ const OrganizationsContent = () => {
                                         </p>
 
                                         <h4 className="mt-[6px] text-[28px] font-bold text-[#1a1b22]">
-                                            {organization.projects}
+                                            0
                                         </h4>
                                     </div>
                                 </div>
 
-                                <button className="mt-auto rounded-[12px] border border-[#3525cd] py-[12px] text-[14px] font-semibold text-[#3525cd] transition-all group-hover:bg-[#3525cd] group-hover:text-white">
+                                <button className="mt-auto rounded-[12px] cursor-pointer border border-[#3525cd] py-[12px] text-[14px] font-semibold text-[#3525cd] transition-all group-hover:bg-[#3525cd] group-hover:text-white">
                                     Switch to Organization
                                 </button>
                             </div>
@@ -184,7 +168,10 @@ const OrganizationsContent = () => {
                     })}
 
                     {/* Add Organization Card */}
-                    <button className="group flex min-h-[360px] flex-col items-center justify-center rounded-[18px] border-2 border-dashed border-[#d6d6df] bg-[#fafbff] p-[32px] transition-all hover:border-[#3525cd] hover:bg-[#f8f7ff]">
+                    <button
+                        onClick={() => setIsCreateModalOpen(true)}
+                        className="group flex min-h-[360px] flex-col items-center justify-center rounded-[18px] border-2 border-dashed border-[#d6d6df] bg-[#fafbff] p-[32px] transition-all hover:border-[#3525cd] hover:bg-[#f8f7ff]"
+                    >
                         <div className="mb-[18px] flex h-[64px] w-[64px] items-center justify-center rounded-full bg-[#eeedf7] transition-all group-hover:bg-[#dad7ff]">
                             <Plus
                                 size={32}
@@ -229,6 +216,22 @@ const OrganizationsContent = () => {
                     </div>
                 </div>
             </footer>
+            <CreateOrganizationModal
+                isOpen={isCreateModalOpen}
+                onClose={() => setIsCreateModalOpen(false)}
+                onCreate={async (data) => {
+                    try {
+                        await createOrganizationMutation.mutateAsync(data);
+
+                        setIsCreateModalOpen(false);
+                    } catch (error) {
+                        console.error(
+                            "Failed to create organization:",
+                            error,
+                        );
+                    }
+                }}
+            />
         </section>
     );
 };
